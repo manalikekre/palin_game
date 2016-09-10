@@ -6,7 +6,11 @@ import redis
 redis_hndlr = redis.Redis(host='localhost', port=6379, db=0)
 
 def delete_data():
-    redis_hndlr.delete('users')
+    try:
+        redis_hndlr.delete('users')
+    except Exception as e:
+        print "Error occured while deleting users data"
+        print e
 
 # setup flask
 app = Flask(__name__)
@@ -18,6 +22,7 @@ def reset_data():
     """
     print 'only once'
     delete_data()
+    
 
 def get_score(text):
     '''
@@ -50,23 +55,32 @@ def get_data(user='all'):
     '''
     print 'inside get_data'
     print 'user- ', user
-    if user == 'all':
-        return redis_hndlr.hgetall('users')
-    else:
-        return {user:redis_hndlr.hget('users', user)}
+    try:
+        if user == 'all':
+            return redis_hndlr.hgetall('users'), "Fetched data for all users"
+        else:
+            return {user:redis_hndlr.hget('users', user)}, "Fetched data"
+    except Exception as e:
+        print "Error occured while fetching data"
+        print e
+        return None, "Error while fetching data"
 
 def put_data(data):
     print 'inside put_data'
     print 'data- ', data
 
-    redis_hndlr.hincrby('users', data['name'], get_score(data['text']))
-
-    current_count = get_data(user=data['name'])
-    print 'current_count- ', current_count
-
-    return {
+    try:
+        redis_hndlr.hincrby('users', data['name'], get_score(data['text']))
+        current_count = get_data(user=data['name'])
+        print 'current_count- ', current_count
+        return {
         data['name']:current_count
-    }
+        }, "Data updated Successufuly"
+    except Exception as e:
+        print "Error occured while updating data"
+        print e
+        return None, "Error while updating data"
+    
 
 @app.route('/halloffame')
 def hall_of_fame():
@@ -74,11 +88,19 @@ def hall_of_fame():
     Returns top 5 best players ranked by score
     '''
     print 'inside hall_of_fame'
-    all_data = get_data(user='all')
+    try:
+        all_data, msg = get_data(user='all')
+        top_five = sorted(all_data.items(), key=all_data.get, reverse=True)
+        result, status = process(top_five, msg)
+        return jsonify(result), status
+    except Exception as e:
+        print "Error in halloffame"
+        print e
+        result, status = process(None, msg)
+        return jsonify(result), status
 
-    top_five = sorted(all_data.items(), key=all_data.get, reverse=True)
-    result, status = process(top_five, "Top 5")
-    return jsonify(result), status
+    
+    
     #return jsonify(top_five)
 
 @app.route('/all')
@@ -87,7 +109,12 @@ def get_all():
     Returns complete user data
     '''
     print 'inside get_all'
-    result, status = process(get_data(user='all'), "all scores")
+    try:
+        val, msg = get_data(user='all')
+    except Exception, e:
+        print "Error in get_all"
+        print e
+    result, status = process(val, msg)
     return jsonify(result), status
     #return jsonify({data: get_data(user='all')})
 
@@ -97,7 +124,15 @@ def get_user(username):
     Returns particular user data
     '''
     print 'inside get_user'
-    result, status = process(get_data(username), "user data")
+    try:
+        val, msg = get_data(username)
+        
+    except Exception as e:
+        "Error in get_user"
+        print e
+         
+        
+    result, status = process(val, msg)
     return jsonify(result), status
 
 def process(data,msg):
@@ -114,12 +149,15 @@ def process(data,msg):
 
 @app.route('/play', methods=['POST'])
 def play():
-
     # get data from request
     data = json.loads(request.data)
-
     print "Received- ", data
-
-    result, status = process(put_data(data),"score added")
-
+    try:
+        val, msg = put_data(data)
+        
+    except Exception as e:
+        print "Error in play"
+        print e
+        
+    result, status = process(val,msg)
     return jsonify(result), status
