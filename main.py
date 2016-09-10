@@ -4,31 +4,53 @@ import re
 # setup redis
 import redis
 redis_hndlr = redis.Redis(host='localhost', port=6379, db=0)
-
+# setup flask
+app = Flask(__name__)
 def delete_data():
+    """
+    Deletes users dict from redis
+    """
     try:
         redis_hndlr.delete('users')
     except Exception as e:
         print "Error occured while deleting users data"
         print e
+def delete_hits():
+    """
+    Deletes hits dict from redis
+    """
+    try:
+        redis_hndlr.delete('hits')
+    except Exception as e:
+        print "Error occured while deleting hits data"
+        print e
 
-# setup flask
-app = Flask(__name__)
+def incr_hits(api):
+    """
+    increases hits count for an api
+    :param api: string
+    """
+    try:
+        redis_hndlr.hincrby('hits', api, 1)
+    except Exception as e:
+        print 'error in incr_hits'
+        print e
 
 @app.before_first_request
 def reset_data():
     """
-    Reset user score
+    Reset user score data, and hits count data
     """
     print 'only once'
     delete_data()
+    delete_hits()
     
 
 def get_score(text):
     '''
     Computes the score corresponding to given text
-
-    TBD, implement is_palindrome logic here
+    If the input is a palindrome then score is half of the size of the palindrome size
+    otherwise zero.
     :param text: string
     :return: integer
 
@@ -66,6 +88,14 @@ def get_data(user='all'):
         return None, "Error while fetching data"
 
 def put_data(data):
+    '''
+    Updates data from redis in-memory data and increases score
+
+    Returns updated data for input user success/failure message
+    Eg: {name:"Mohan" text: "Madam I'm Adam"}
+    :param name: dict 
+    :return: tuple
+    '''
     print 'inside put_data'
     print 'data- ', data
 
@@ -86,7 +116,9 @@ def put_data(data):
 def hall_of_fame():
     '''
     Returns top 5 best players ranked by score
+    :return :json, int
     '''
+    incr_hits('halloffame')
     print 'inside hall_of_fame'
     try:
         all_data, msg = get_data(user='all')
@@ -108,6 +140,7 @@ def get_all():
     '''
     Returns complete user data
     '''
+    incr_hits('all')
     print 'inside get_all'
     try:
         val, msg = get_data(user='all')
@@ -121,8 +154,9 @@ def get_all():
 @app.route('/user/<username>')
 def get_user(username):
     '''
-    Returns particular user data
+    Returns specified user data
     '''
+    incr_hits('user')
     print 'inside get_user'
     try:
         val, msg = get_data(username)
@@ -136,8 +170,9 @@ def get_user(username):
     return jsonify(result), status
 
 def process(data,msg):
-
-    #temp_result = put_data(data)
+    """
+    process the data to return
+    """
 
     result  = {
     "message":msg,
@@ -149,7 +184,10 @@ def process(data,msg):
 
 @app.route('/play', methods=['POST'])
 def play():
-    # get data from request
+    """
+    Lets user submit name and text
+    """
+    incr_hits('play')
     data = json.loads(request.data)
     print "Received- ", data
     try:
