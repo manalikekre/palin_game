@@ -6,6 +6,7 @@ import redis
 redis_hndlr = redis.Redis(host='localhost', port=6379, db=0)
 # setup flask
 app = Flask(__name__)
+
 def delete_data():
     """
     Deletes users dict from redis
@@ -15,6 +16,7 @@ def delete_data():
     except Exception as e:
         print "Error occured while deleting users data"
         print e
+
 def delete_hits():
     """
     Deletes hits dict from redis
@@ -45,7 +47,6 @@ def reset_data():
     delete_data()
     delete_hits()
     
-
 def get_score(text):
     '''
     Computes the score corresponding to given text
@@ -60,7 +61,7 @@ def get_score(text):
     print text
     score = 0
     if text == text[::-1]:
-        score = len(text)/2
+        score = len(text)/2.0
     print 'score ',score
     return score
 
@@ -100,7 +101,7 @@ def put_data(data):
     print 'data- ', data
 
     try:
-        redis_hndlr.hincrby('users', data['name'], get_score(data['text']))
+        redis_hndlr.hincrbyfloat('users', data['name'], get_score(data['text']))
         current_count = get_data(user=data['name'])
         print 'current_count- ', current_count
         return {
