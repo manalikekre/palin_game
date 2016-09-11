@@ -69,20 +69,23 @@ def get_user(user):
     )
     return result
 
-def play(name, text):
+def play(data):
     '''
-    submits user name and user input
-    :param name: string
-    :param text: string
+    submits data['name'] & data['text']
+    :param data: dict
     return: dict
     '''
     url = "http://localhost:5000/play"
     method = 'POST'
-    print 'name- ', name
-    print 'text- ', text
+    try:
+        print 'name- ', data['name']
+        print 'text- ', data['name']
+    except:
+        print 'bad parameter'
+
     result = talk_to_server(
         url=url,
-        data={'name':name, 'text':text},
+        data=data,
         method=method
     )
     return result
