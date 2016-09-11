@@ -189,7 +189,12 @@ def play():
     """
     incr_hits('play')
     data = json.loads(request.data)
+
+    # take care of trailing/leading spaces in name
+    data["name"] = data["name"].strip()
+
     print "Received- ", data
+
     try:
         val, msg = put_data(data)
         
