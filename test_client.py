@@ -4,6 +4,11 @@ import time
 import random
 import main
 
+def clear_data():
+    '''Deletes records in redis db'''
+    # TBD - Use separate db for testing
+    main.delete_data()
+
 def test_get_user():
     '''Tests if a user's score persists & is retrievable'''
     pass
@@ -14,16 +19,62 @@ def test_play():
 
 def test_halloffame():
     '''Tests if halloffame correctly returns top5 users'''
-    pass
+
+    # reset data on redis database for testing
+    clear_data()
+    sample_data =  [
+        {
+            "name": "abcd",
+            "text": "abcdeedcba"
+        },
+        {
+            "name": "efgh",
+            "text": "abcddcba"
+        },
+        {
+            "name": "ijkl",
+            "text": "abcdeffedcba"
+        },
+        {
+            "name": "mnop",
+            "text": "abba"
+        },
+        {
+            "name": "qrst",
+            "text": "123456789987654321"
+        },
+        {
+            "name": "uvwx",
+            "text": "a"
+        },
+    ]
+    user_names = [item['name'] for item in sample_data]
+    scores_dict = {item["name"]:len(item["text"])/2.0 for item in sample_data}
+    expected_halloffame = sorted(user_names, key=scores_dict.get, reverse=True)[:5]
+
+    #print 'scores_dict- ', scores_dict
+    #print 'expected_halloffame- ', expected_halloffame
+
+    # submit data
+    for item in sample_data:
+        client.play(item)
+
+    # retrieve halloffame data
+    recieved_halloffame = [item['name'] for item in client.hall_of_fame()['data']]
+
+    #print 'recieved_halloffame- ', recieved_halloffame
+    if recieved_halloffame == expected_halloffame:
+        print 'PASSED!'
+    else:
+        print 'FAILED!'
 
 def test_threadsafety_for_play():
     '''Tests if score is consistent if multiple clients
     hit the server at the same time'''
 
-    print '\nTesting Threadsafety'
-
+    print '\nTesting threadsafety- ',
     # reset data on redis database for testing
-    main.reset_data()
+    clear_data()
 
     # prepare sample data
     # make sure all text are palindrome for test case to work
@@ -45,17 +96,19 @@ def test_threadsafety_for_play():
             "text": "abcddcba"
         },
     ]
-
-    user_names = [item['name'] for item in sample_data]
     counts = [50, 100, 200, 500]
-    scores = [len(item["text"])/2.0 for item in sample_data]
-
-    expected_scores = [count*score for count, score in zip(counts, scores)]
+    user_names = [item['name'] for item in sample_data]
+    scores_dict = {item["name"]:len(item["text"])/2.0 for item in sample_data}
+    expected_scores = [score for play, score in scores_dict.items()]
 
     data = []
     for i in range(4):
         for count in range(counts[i]):
             data.append(sample_data[i])
+
+        # update expected scores list
+        expected_scores[i] = expected_scores[i]*counts[i]
+
     random.shuffle(data)
 
     # Make the Pool of workers
@@ -65,15 +118,13 @@ def test_threadsafety_for_play():
     start_time = time.time()
     # Open the urls in their own workers
     # and return the results
-    print '\nInitiating ', no_of_workers,' threads to hit the server ', sum(counts), ' times...'
+    # print 'Initiating ', no_of_workers,' threads to hit the server ', sum(counts), ' times...'
     results = pool.map(client.play, data)
 
     # close the pool and wait for the work to finish
     pool.close()
     pool.join()
-    end_time = time.time()
 
-    print '\nTook- ', round((end_time - start_time),3), ' seconds\n'
     #print 'user_names- ', user_names
     #print 'counts- ', counts
     #print 'scores- ', scores
@@ -83,11 +134,15 @@ def test_threadsafety_for_play():
     #print 'received_scores- ', received_scores
 
     if received_scores == expected_scores:
-        print 'TEST SUCCESSFUL- Data is consistent!\n'
+        print 'PASSED!'
     else:
-        print 'TEST FAILED- Data is inconsistent!\n'
+        print 'FAILED!'
 
 if __name__ == '__main__':
-    test_threadsafety_for_play()
 
+    start_time = time.time()
+    test_threadsafety_for_play()
+    print '\nTesting halloffame- ',
+    test_halloffame()
+    print '\nTook ', round((time.time() - start_time), 3), ' seconds\n'
 
