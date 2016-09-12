@@ -3,19 +3,183 @@ import client
 import time
 import random
 import main
+import re
 
 def clear_data():
     '''Deletes records in redis db'''
     # TBD - Use separate db for testing
     main.delete_data()
 
+def test_get_all():
+    '''Tests get all fnctionality'''
+
+    print '\nTesting get all- ',
+    # reset data on redis database for testing
+    clear_data()
+    sample_data = [
+        {
+            "name": "abcd",
+            "text": "abcdeedcba"
+        },
+        {
+            "name": "efgh",
+            "text": "abcddcba"
+        },
+        {
+            "name": "ijkl",
+            "text": "abcdeffedcba"
+        },
+        {
+            "name": "mnop",
+            "text": "abba"
+        },
+        {
+            "name": "qrst",
+            "text": "123456789987654321"
+        },
+        {
+            "name": "uvwx",
+            "text": "a"
+        },
+    ]
+    expected_get_all = {}
+    for item in sample_data:
+        expected_get_all[item["name"]] = expected_get_all.get(item["name"], 0) + get_score(item["text"])
+    #print 'expected_get_all- ',expected_get_all
+
+    # submit data
+    for item in sample_data:
+        client.play(item)
+
+    # retrieve all user data
+    recieved_get_all = { item['name']: float(item['score']) for item in client.get_all()['data']}
+    #print 'recieved_get_all- ',recieved_get_all
+    if recieved_get_all == expected_get_all:
+        print 'PASSED!'
+    else:
+        print 'FAILED!'
+
 def test_get_user():
     '''Tests if a user's score persists & is retrievable'''
-    pass
+
+    print '\nTesting get user- ',
+    # reset data on redis database for testing
+    clear_data()
+    sample_data = [
+        {
+            "name": "abcd",
+            "text": "abcdeedcba"
+        },
+        {
+            "name": "abcd",
+            "text": "abcdeedcba"
+        },
+        {
+            "name": "efgh",
+            "text": "abcddcba"
+        },
+        {
+            "name": "ijkl",
+            "text": "abcdeffedcba"
+        },
+        {
+            "name": "mnop",
+            "text": "abba"
+        },
+        {
+            "name": "qrst",
+            "text": "123456789987654321"
+        },
+        {
+            "name": "uvwx",
+            "text": "a"
+        },
+    ]
+    user_names = {item['name'] for item in sample_data}
+    expected_get_user = {}
+    for item in sample_data:
+        expected_get_user[item["name"]] = expected_get_user.get(item["name"], 0) + get_score(item["text"])
+    #print 'expected_get_user- ',expected_get_user
+
+    # submit data
+    for item in sample_data:
+        client.play(item)
+
+    # retrieve user data
+    recieved_get_user = { user : float(client.get_user(user)['data']['score']) for user in user_names}
+    #print 'recieved_get_user- ',recieved_get_user
+    if recieved_get_user == expected_get_user:
+        print 'PASSED!'
+    else:
+        print 'FAILED!'
 
 def test_play():
     '''Tests if a user's score is incremented properly'''
-    pass
+    print '\nTesting play- ',
+    # reset data on redis database for testing
+    clear_data()
+
+    sample_data =  [
+        {
+            "name": "abcd",
+            "text": "abcdeedcba"
+        },
+        {
+            "name": "abcd",
+            "text": "abcdeedcba"
+        },
+        {
+            "name": "ijkl",
+            "text": "abcdeffedcba"
+        },
+        {
+            "name": "mnop",
+            "text": "abba"
+        },
+        {
+            "name": "qrst",
+            "text": "123456789987654321"
+        },
+        {
+            "name": "qrst",
+            "text": "123456789987654321"
+        },
+    ]
+
+    expected_scores_dict = {}
+    for item in sample_data:
+        expected_scores_dict[item["name"]] = expected_scores_dict.get(item["name"], 0) + get_score(item["text"])
+
+    #print expected_scores_dict
+
+    # submit data
+    for item in sample_data:
+        client.play(item)
+
+    # retrieve halloffame data
+    recieved_scores_dict = { item["name"]:client.get_user(item["name"])["data"]["score"] for item in sample_data}
+
+    #print 'recieved_scores_dict- ', recieved_scores_dict
+    if recieved_scores_dict == recieved_scores_dict:
+        print 'PASSED!'
+    else:
+        print 'FAILED!'
+
+def get_score(text):
+    '''
+    Computes the score corresponding to given text
+    If the input is a palindrome then score is half of the size of the palindrome size
+    otherwise zero.
+    :param text: string
+    :return: integer
+    '''
+    text = re.sub('[^A-Za-z0-9]','',text)
+    text = text.lower()
+
+    score = 0
+    if text == text[::-1]:
+        score = len(text)/2.0
+    return score
 
 def test_halloffame():
     '''Tests if halloffame correctly returns top5 users'''
@@ -143,6 +307,9 @@ if __name__ == '__main__':
     start_time = time.time()
     test_threadsafety_for_play()
     test_halloffame()
+    test_play()
+    test_get_user()
+    test_get_all()
     print '\nTook ', round((time.time() - start_time), 3), ' seconds\n'
     clear_data()
 
