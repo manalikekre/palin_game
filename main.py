@@ -56,7 +56,6 @@ def get_score(text):
     otherwise zero.
     :param text: string
     :return: integer
-
     '''
     text = re.sub('[^A-Za-z0-9]','',text)
     text = text.lower()
@@ -82,13 +81,13 @@ def get_data(user='all'):
     print 'user- ', user
     try:
         if user == 'all':
-            return redis_hndlr.hgetall('users'), "Fetched data for all users"
+            return redis_hndlr.hgetall('users'), "Fetched data for all users", 200
         else:
-            return {user:redis_hndlr.hget('users', user)}, "Fetched data"
+            return {user:redis_hndlr.hget('users', user)}, "Fetched data for user "+user, 200
     except Exception as e:
         print "Error occured while fetching data"
         print e
-        return None, "Error while fetching data"
+        return "None", "Error while fetching data", 503
 
 def put_data(data):
     '''
@@ -103,17 +102,24 @@ def put_data(data):
     print 'data- ', data
 
     try:
+        if redis_hndlr.hget('users', data['name']) is None:
+            status = 201
+            msg = "created new player"
+        else:
+            status = 200
+            msg = "updated player score"
+
         redis_hndlr.hincrbyfloat('users', data['name'], get_score(data['text']))
-        current_count, msg = get_data(user=data['name'])
+        current_count, mesg, stat = get_data(user=data['name'])
         print 'current_count- ', current_count[data['name']]
         return {
             "name" : data['name'],
             "score" : current_count[data['name']]
-        }, "updated player score"
+        }, msg, status
     except Exception as e:
         print "Error occured while updating data"
         print e
-        return None, "Error while updating data"
+        return "None", "Error while updating data", 503
     
 
 @app.route('/halloffame')
@@ -124,19 +130,19 @@ def hall_of_fame():
     '''
     incr_hits('halloffame')
     print 'inside hall_of_fame'
-
+    status = 404
     try:
-        all_data, msg = get_data(user='all')
+        all_data, msg, status = get_data(user='all')
         print all_data
         top_five = sorted(all_data.items(), key = lambda item :float(item[1]), reverse=True)[:5]
         print top_five
         data_to_send = [{'name': item[0], 'score': item[1]} for item in top_five]
-        result, status = process(data_to_send, msg)
+        result= format_data(data_to_send, msg, status)
         return jsonify(result), status
     except Exception as e:
         print "Error in halloffame"
         print e
-        result, status = process("None", msg)
+        result = format_data("None", msg, status)
         return jsonify(result), status
 
     
@@ -146,53 +152,56 @@ def hall_of_fame():
 @app.route('/all')
 def get_all():
     '''
-    Returns complete user data
+    Returns complete player data
     '''
     incr_hits('all')
     print 'inside get_all'
     data_to_send = "None"
+    status = 404
     try:
-        val, msg = get_data(user='all')
+        val, msg, status = get_data(user='all')
         print val
         data_to_send = [{'name': k, 'score':v} for k,v in val.items()]
     except Exception, e:
         print "Error in get_all"
         print e
-    result, status = process(data_to_send, msg)
+    result = format_data(data_to_send, msg, status)
     return jsonify(result), status
     #return jsonify({data: get_data(user='all')})
 
 @app.route('/user/<username>')
 def get_user(username):
     '''
-    Returns specified player data
+    Returns specified player score
     '''
+    status = 404
     incr_hits('user')
     print 'inside get_user'
     data_to_send = "None"
     try:
-        val, msg = get_data(username)
+        val, msg, status = get_data(username)
         data_to_send = {'name': username, 'score':val[username]}
     except Exception as e:
         "Error in get_user"
         print e
          
         
-    result, status = process(data_to_send, msg)
+    result = format_data(data_to_send, msg, status)
     return jsonify(result), status
 
-def process(data, msg):
+def format_data(data, msg, status):
     """
-    process the data to return
+    format_data the data to return
     """
 
     result  = {
     "message":msg,
     "data": data,
-    "error": "None"   
+    "error": "None",
+    "status" : status   
     }
-    status = 201
-    return result, status
+    #status = 201
+    return result
 
 
 @app.route('/play', methods=['POST'])
@@ -205,6 +214,7 @@ def play():
     sample: {"name" : "John Doe", "text": "Madam I'm Adam!"}
     response:{"data" : { "name": "John Doe", "score": '5.5'}, error: "None", "message": "Data updated Successufuly" }
     """
+    status = 404
     incr_hits('play')
     data = json.loads(request.data)
 
@@ -213,14 +223,15 @@ def play():
 
     print "Received- ", data
     val = "None"
+
     try:
-        val, msg = put_data(data)
+        val, msg, status = put_data(data)
         
     except Exception as e:
         print "Error in play"
         print e
         
-    result, status = process(val,msg)
+    result = format_data(val,msg, status)
     return jsonify(result), status
 
 
@@ -246,7 +257,11 @@ def list_routes():
         print line
     return jsonify({'data':output}), 200
 
-
+@app.errorhandler(404)
+def page_not_found(error):
+    print 'inside page not found'
+    return jsonify(format_data('None', 'Page Not Found, visit / to check available routes.', 404)), 404
+    
 
 if __name__ == '__main__':
     app.run(
