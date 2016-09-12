@@ -1,5 +1,7 @@
 import requests, json
 
+HOST = "localhost"
+
 def talk_to_server(url, data, method):
     '''
     talks to server sends & recieves data.
@@ -8,10 +10,12 @@ def talk_to_server(url, data, method):
     :param method: string
     :return: dict
     '''
-    print 'url- ', url
-    print 'data- ', data
-    print 'method- ', method
+    #print 'url- ', url
+    #print 'data- ', data
+    #print 'method- ', method
     headers = {"Content-Type": "application/json"}
+
+    url = 'http://' + HOST + ':5000' + url
     try:
         if method == 'POST' :
             response = requests.post(url, data=json.dumps(data), headers=headers)
@@ -31,7 +35,7 @@ def get_all():
     fetches all players and their scores
     return: dict
     '''
-    url = "http://localhost:5000/all"
+    url = "/all"
     method = 'GET'
     result = talk_to_server(
             url=url,
@@ -45,7 +49,7 @@ def hall_of_fame():
     fetches top 5 players
     return: dict
     '''
-    url = "http://localhost:5000/halloffame"
+    url = "/halloffame"
     method = 'GET'
     result = talk_to_server(
         url=url,
@@ -60,7 +64,7 @@ def get_user(user):
     :param user: string
     return: dict
     '''
-    url = "http://localhost:5000/user/" + user
+    url = "/user/" + user
     method = 'GET'
     result = talk_to_server(
         url=url,
@@ -75,14 +79,15 @@ def play(data):
     :param data: dict
     return: dict
     '''
-    url = "http://localhost:5000/play"
+    url = "/play"
     method = 'POST'
+    '''
     try:
         print 'name- ', data['name']
         print 'text- ', data['name']
     except:
         print 'bad parameter'
-
+    '''
     result = talk_to_server(
         url=url,
         data=data,
