@@ -19,7 +19,7 @@ def test_play():
 
 def test_halloffame():
     '''Tests if halloffame correctly returns top5 users'''
-
+    print '\nTesting halloffame- ',
     # reset data on redis database for testing
     clear_data()
     sample_data =  [
@@ -142,7 +142,7 @@ if __name__ == '__main__':
 
     start_time = time.time()
     test_threadsafety_for_play()
-    print '\nTesting halloffame- ',
     test_halloffame()
     print '\nTook ', round((time.time() - start_time), 3), ' seconds\n'
+    clear_data()
 
