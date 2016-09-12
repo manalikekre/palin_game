@@ -1,8 +1,10 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, url_for
 import json
 import re
+import urllib
 # setup redis
 import redis
+
 redis_hndlr = redis.Redis(host='localhost', port=6379, db=0)
 # setup flask
 app = Flask(__name__)
@@ -102,11 +104,12 @@ def put_data(data):
 
     try:
         redis_hndlr.hincrbyfloat('users', data['name'], get_score(data['text']))
-        current_count = get_data(user=data['name'])
-        print 'current_count- ', current_count
+        current_count, msg = get_data(user=data['name'])
+        print 'current_count- ', current_count[data['name']]
         return {
-        data['name']:current_count
-        }, "Data updated Successufuly"
+            "name" : data['name'],
+            "score" : current_count[data['name']]
+        }, "updated player score"
     except Exception as e:
         print "Error occured while updating data"
         print e
@@ -121,15 +124,19 @@ def hall_of_fame():
     '''
     incr_hits('halloffame')
     print 'inside hall_of_fame'
+
     try:
         all_data, msg = get_data(user='all')
-        top_five = sorted(all_data.items(), key=all_data.get, reverse=True)
-        result, status = process(top_five, msg)
+        print all_data
+        top_five = sorted(all_data.items(), key = lambda item :float(item[1]), reverse=True)[:5]
+        print top_five
+        data_to_send = [{'name': item[0], 'score': item[1]} for item in top_five]
+        result, status = process(data_to_send, msg)
         return jsonify(result), status
     except Exception as e:
         print "Error in halloffame"
         print e
-        result, status = process(None, msg)
+        result, status = process("None", msg)
         return jsonify(result), status
 
     
@@ -143,34 +150,38 @@ def get_all():
     '''
     incr_hits('all')
     print 'inside get_all'
+    data_to_send = "None"
     try:
         val, msg = get_data(user='all')
+        print val
+        data_to_send = [{'name': k, 'score':v} for k,v in val.items()]
     except Exception, e:
         print "Error in get_all"
         print e
-    result, status = process(val, msg)
+    result, status = process(data_to_send, msg)
     return jsonify(result), status
     #return jsonify({data: get_data(user='all')})
 
 @app.route('/user/<username>')
 def get_user(username):
     '''
-    Returns specified user data
+    Returns specified player data
     '''
     incr_hits('user')
     print 'inside get_user'
+    data_to_send = "None"
     try:
         val, msg = get_data(username)
-        
+        data_to_send = {'name': username, 'score':val[username]}
     except Exception as e:
         "Error in get_user"
         print e
          
         
-    result, status = process(val, msg)
+    result, status = process(data_to_send, msg)
     return jsonify(result), status
 
-def process(data,msg):
+def process(data, msg):
     """
     process the data to return
     """
@@ -178,15 +189,21 @@ def process(data,msg):
     result  = {
     "message":msg,
     "data": data,
-    "error":"None"''
+    "error": "None"   
     }
     status = 201
     return result, status
 
+
 @app.route('/play', methods=['POST'])
 def play():
     """
-    Lets user submit name and text
+    Lets a player submit username and text.
+    adds score corresponding to the text entered.
+    accepts data {"name" : String, "text": String}
+
+    sample: {"name" : "John Doe", "text": "Madam I'm Adam!"}
+    response:{"data" : { "name": "John Doe", "score": '5.5'}, error: "None", "message": "Data updated Successufuly" }
     """
     incr_hits('play')
     data = json.loads(request.data)
@@ -195,7 +212,7 @@ def play():
     data["name"] = data["name"].strip()
 
     print "Received- ", data
-
+    val = "None"
     try:
         val, msg = put_data(data)
         
@@ -205,6 +222,31 @@ def play():
         
     result, status = process(val,msg)
     return jsonify(result), status
+
+
+@app.route('/')
+def list_routes():
+    """
+    lists all urls available for this app
+    """
+    output = []
+    for rule in app.url_map.iter_rules():
+        if rule.endpoint != 'static':
+
+            options = {}
+            for arg in rule.arguments:
+                options[arg] = "[{0}]".format(arg)
+
+            methods = ','.join(rule.methods)
+            url = url_for(rule.endpoint, **options)
+            #line = urllib.unquote("{:50s} {:20s} {}".format(rule.endpoint, methods, url))
+            output.append({'url': url, 'methods': methods, 'doc':eval(rule.endpoint).__doc__.strip()})
+    
+    for line in sorted(output):
+        print line
+    return jsonify({'data':output}), 200
+
+
 
 if __name__ == '__main__':
     app.run(
